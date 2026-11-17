@@ -1,0 +1,52 @@
+# Generate CA
+openssl genrsa -out ca.key 2048
+openssl req -x509 -new -nodes -key ca.key \
+-out ca.crt -days 365 -subj "/CN=Demo CA"
+
+# Generate server certificate
+openssl genrsa -out server.key 2048
+openssl req -new -key server.key -out server.csr \
+-subj "/CN=localhost"
+
+openssl x509 -req -in server.csr -CA ca.crt \
+-CAkey ca.key -CAcreateserial -out server.crt -days 365
+
+# Generate client certificate
+openssl genrsa -out client.key 2048
+openssl req -new -key client.key -out client.csr \
+-subj "/CN=Demo Client"
+
+openssl x509 -req -in client.csr -CA ca.crt \
+-CAkey ca.key -CAcreateserial -out client.crt -days 365
+
+from fastapi import FastAPI, Request
+
+app = FastAPI()
+
+@app.get("/")
+def home():
+    return {"message": "Certificate Authentication Server"}
+
+@app.get("/secure")
+async def secure_endpoint(request: Request):
+    return {
+        "status": "success",
+        "message": "Client certificate authenticated"
+    }
+
+import requests
+
+url = "https://localhost:8443/secure"
+
+response = requests.get(
+    url,
+    cert=(
+        "certificates/client.crt",
+        "certificates/client.key"
+    ),
+    verify="certificates/ca.crt"
+)
+
+print("Status Code:", response.status_code)
+
+print("API Response:", response.json())
